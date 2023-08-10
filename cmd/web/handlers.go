@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/chauvinhphuoc/snippetbox/internal/db/sqlc"
+	"html/template"
 	"net/http"
 	"strconv"
 	"time"
@@ -24,28 +25,31 @@ func (app *application) home(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	for _, snippet := range result {
-		fmt.Fprintf(w, "%+v\n", snippet)
+	data := app.newTemplateData()
+	data.Snippets = result
+
+	filenames := []string{
+		"./ui/html/pages/home.html",
+		"./ui/html/base.html",
+		"./ui/html/partials/navbar.html",
 	}
 
-	//filenames := []string{
-	//	"./ui/html/pages/home.html",
-	//	"./ui/html/base.html",
-	//	"./ui/html/partials/navbar.html",
-	//}
-	//
-	//ts, err := template.ParseFiles(filenames...)
-	//if err != nil {
-	//	app.errorLog.Print(err)
-	//	http.Error(w, "Internal Server Error", http.StatusMethodNotAllowed)
-	//	return
-	//}
-	//
-	//err = ts.ExecuteTemplate(w, "base", nil)
-	//if err != nil {
-	//	app.errorLog.Print(err)
-	//	http.Error(w, "Internal Server Error", http.StatusMethodNotAllowed)
-	//}
+	// The template.FuncMap must be registered with the template set before you
+	// call the ParseFiles() method.
+	ts := template.New(r.URL.Path).Funcs(map[string]any{
+		"humanDate": humanDate,
+	})
+	ts, err = ts.ParseFiles(filenames...)
+
+	if err != nil {
+		app.serverError(w, err)
+		return
+	}
+
+	err = ts.ExecuteTemplate(w, "base", data)
+	if err != nil {
+		app.serverError(w, err)
+	}
 }
 
 func (app *application) viewSnippet(w http.ResponseWriter, r *http.Request) {
@@ -66,7 +70,30 @@ func (app *application) viewSnippet(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	fmt.Fprintf(w, "%v", result)
+	files := []string{
+		"./ui/html/base.html",
+		"./ui/html/pages/view.html",
+		"./ui/html/partials/navbar.html",
+	}
+
+	// The template.FuncMap must be registered with the template set before you
+	// call the ParseFiles() method.
+	ts := template.New(r.URL.Path).Funcs(map[string]any{
+		"humanDate": humanDate,
+	})
+	ts, err = ts.ParseFiles(files...)
+	if err != nil {
+		app.serverError(w, err)
+		return
+	}
+
+	data := app.newTemplateData()
+	data.Snippet = result
+
+	err = ts.ExecuteTemplate(w, "base", data)
+	if err != nil {
+		app.serverError(w, err)
+	}
 }
 
 func (app *application) createSnippet(w http.ResponseWriter, r *http.Request) {
