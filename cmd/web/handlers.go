@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/chauvinhphuoc/snippetbox/internal/db/sqlc"
+	"github.com/julienschmidt/httprouter"
 	"html/template"
 	"net/http"
 	"strconv"
@@ -13,11 +14,6 @@ import (
 )
 
 func (app *application) home(w http.ResponseWriter, r *http.Request) {
-	if r.URL.Path != "/" {
-		http.NotFound(w, r)
-		return
-	}
-
 	result, err := app.GetTenLatestSnippets(context.Background())
 	if err != nil {
 		app.errorLog.Print(err)
@@ -40,7 +36,6 @@ func (app *application) home(w http.ResponseWriter, r *http.Request) {
 		"humanDate": humanDate,
 	})
 	ts, err = ts.ParseFiles(filenames...)
-
 	if err != nil {
 		app.serverError(w, err)
 		return
@@ -53,7 +48,9 @@ func (app *application) home(w http.ResponseWriter, r *http.Request) {
 }
 
 func (app *application) viewSnippet(w http.ResponseWriter, r *http.Request) {
-	id, err := strconv.Atoi(r.URL.Query().Get("id"))
+	params := httprouter.ParamsFromContext(r.Context())
+
+	id, err := strconv.Atoi(params.ByName("id"))
 	if err != nil || id < 1 {
 		http.NotFound(w, r)
 		return
@@ -71,9 +68,9 @@ func (app *application) viewSnippet(w http.ResponseWriter, r *http.Request) {
 	}
 
 	files := []string{
-		"./ui/html/base.html",
-		"./ui/html/pages/view.html",
-		"./ui/html/partials/navbar.html",
+		"ui/html/base.html",
+		"ui/html/pages/view.html",
+		"ui/html/partials/navbar.html",
 	}
 
 	// The template.FuncMap must be registered with the template set before you
@@ -96,13 +93,11 @@ func (app *application) viewSnippet(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (app *application) createSnippet(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		w.Header().Set("Allow", "POST")
-		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
-		return
-	}
+func (app *application) createSnippetForm(w http.ResponseWriter, r *http.Request) {
+	w.Write([]byte("Display a form for creating a new snippet..."))
+}
 
+func (app *application) createSnippetPost(w http.ResponseWriter, r *http.Request) {
 	arg := sqlc.CreateSnippetParams{
 		Title:   "Amazing Spider Man",
 		Content: "Today is a beautiful day",
@@ -116,5 +111,5 @@ func (app *application) createSnippet(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	http.Redirect(w, r, fmt.Sprintf("/snippet/view?id=%v", result), http.StatusSeeOther)
+	http.Redirect(w, r, fmt.Sprintf("/snippet/view/%v", result), http.StatusSeeOther)
 }
