@@ -48,6 +48,7 @@ func (app *application) home(w http.ResponseWriter, r *http.Request) {
 }
 
 func (app *application) viewSnippet(w http.ResponseWriter, r *http.Request) {
+	// params are parameters from URL path, not query parameters
 	params := httprouter.ParamsFromContext(r.Context())
 
 	id, err := strconv.Atoi(params.ByName("id"))
@@ -94,7 +95,24 @@ func (app *application) viewSnippet(w http.ResponseWriter, r *http.Request) {
 }
 
 func (app *application) createSnippetForm(w http.ResponseWriter, r *http.Request) {
-	w.Write([]byte("Display a form for creating a new snippet..."))
+	files := []string{
+		"./ui/html/pages/create-snippet.html",
+		"./ui/html/base.html",
+		"./ui/html/partials/navbar.html",
+	}
+
+	ts, err := template.ParseFiles(files...)
+	if err != nil {
+		app.serverError(w, err)
+		return
+	}
+
+	data := app.newTemplateData()
+
+	err = ts.ExecuteTemplate(w, "base", data)
+	if err != nil {
+		app.serverError(w, err)
+	}
 }
 
 func (app *application) createSnippetPost(w http.ResponseWriter, r *http.Request) {

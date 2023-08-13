@@ -7,6 +7,7 @@ import (
 	"time"
 )
 
+// serverError logs the error to stderr and writes internal server error into response.
 func (app *application) serverError(w http.ResponseWriter, err error) {
 	trace := fmt.Sprintf("%s\n%s", err.Error(), debug.Stack())
 	app.errorLog.Output(2, trace)
