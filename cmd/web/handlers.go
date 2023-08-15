@@ -10,41 +10,21 @@ import (
 	"html/template"
 	"net/http"
 	"strconv"
-	"time"
+	"strings"
+	"unicode/utf8"
 )
 
 func (app *application) home(w http.ResponseWriter, r *http.Request) {
 	result, err := app.GetTenLatestSnippets(context.Background())
 	if err != nil {
-		app.errorLog.Print(err)
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		app.serverError(w, err)
 		return
 	}
 
-	data := app.newTemplateData()
+	data := newTemplateData()
 	data.Snippets = result
 
-	filenames := []string{
-		"./ui/html/pages/home.html",
-		"./ui/html/base.html",
-		"./ui/html/partials/navbar.html",
-	}
-
-	// The template.FuncMap must be registered with the template set before you
-	// call the ParseFiles() method.
-	ts := template.New(r.URL.Path).Funcs(map[string]any{
-		"humanDate": humanDate,
-	})
-	ts, err = ts.ParseFiles(filenames...)
-	if err != nil {
-		app.serverError(w, err)
-		return
-	}
-
-	err = ts.ExecuteTemplate(w, "base", data)
-	if err != nil {
-		app.serverError(w, err)
-	}
+	app.render(w, http.StatusOK, "home.html", data)
 }
 
 func (app *application) viewSnippet(w http.ResponseWriter, r *http.Request) {
@@ -53,18 +33,17 @@ func (app *application) viewSnippet(w http.ResponseWriter, r *http.Request) {
 
 	id, err := strconv.Atoi(params.ByName("id"))
 	if err != nil || id < 1 {
-		http.NotFound(w, r)
+		app.clientError(w, http.StatusNotFound)
 		return
 	}
 
 	result, err := app.GetSnippetNotExpired(context.Background(), int32(id))
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			http.NotFound(w, r)
+			app.clientError(w, http.StatusNotFound)
 			return
 		}
-		app.errorLog.Print(err)
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		app.serverError(w, err)
 		return
 	}
 
@@ -74,8 +53,6 @@ func (app *application) viewSnippet(w http.ResponseWriter, r *http.Request) {
 		"ui/html/partials/navbar.html",
 	}
 
-	// The template.FuncMap must be registered with the template set before you
-	// call the ParseFiles() method.
 	ts := template.New(r.URL.Path).Funcs(map[string]any{
 		"humanDate": humanDate,
 	})
@@ -85,7 +62,7 @@ func (app *application) viewSnippet(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	data := app.newTemplateData()
+	data := newTemplateData()
 	data.Snippet = result
 
 	err = ts.ExecuteTemplate(w, "base", data)
@@ -94,10 +71,10 @@ func (app *application) viewSnippet(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (app *application) createSnippetForm(w http.ResponseWriter, r *http.Request) {
+func (app *application) displayCreateSnippetForm(w http.ResponseWriter, r *http.Request) {
 	files := []string{
-		"./ui/html/pages/create-snippet.html",
 		"./ui/html/base.html",
+		"./ui/html/pages/create-snippet.html",
 		"./ui/html/partials/navbar.html",
 	}
 
@@ -107,19 +84,91 @@ func (app *application) createSnippetForm(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	data := app.newTemplateData()
-
-	err = ts.ExecuteTemplate(w, "base", data)
+	err = ts.ExecuteTemplate(w, "base", nil)
 	if err != nil {
 		app.serverError(w, err)
 	}
 }
 
+// createSnippetForm represents the form data and validation errors
+// for the form fields.
+type createSnippetForm struct {
+	Title       string
+	Content     string
+	Expires     int32
+	FieldErrors map[string]string
+}
+
 func (app *application) createSnippetPost(w http.ResponseWriter, r *http.Request) {
+	// r.ParseForm() adds any data in POST request bodies to the r.PostForm map.
+	err := r.ParseForm()
+	if err != nil {
+		// I think we need logging here because err may be due to either a server error or client error.
+		app.errorLog.Print(err)
+		app.clientError(w, http.StatusBadRequest)
+		return
+	}
+
+	expires, err := strconv.Atoi(r.PostForm.Get("expires"))
+	if err != nil {
+		app.clientError(w, http.StatusBadRequest)
+		return
+	}
+
+	form := createSnippetForm{
+		Title:       r.PostForm.Get("title"),
+		Content:     r.PostForm.Get("content"),
+		Expires:     int32(expires),
+		FieldErrors: map[string]string{},
+	}
+
+	if strings.TrimSpace(form.Title) == "" {
+		form.FieldErrors["title"] = "This field cannot be blank"
+	} else if utf8.RuneCountInString(form.Title) > 100 {
+		form.FieldErrors["title"] = "This field cannot be more than 100 characters long"
+	}
+
+	if strings.TrimSpace(form.Content) == "" {
+		form.FieldErrors["content"] = "This field cannot be blank"
+	}
+
+	if expires != 1 && expires != 7 && expires != 365 {
+		form.FieldErrors["expires"] = "This field must equal 1, 7 or 365"
+	}
+
+	// If there are any validation errors, re-display the create-snippet.html with error notifications.
+	if len(form.FieldErrors) > 0 {
+		data := newTemplateData()
+		data.Form = form
+
+		files := []string{
+			"./ui/html/base.html",
+			"./ui/html/pages/create-snippet.html",
+			"./ui/html/partials/navbar.html",
+		}
+
+		ts, err := template.ParseFiles(files...)
+		if err != nil {
+			app.errorLog.Print(err)
+			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+			return
+		}
+
+		w.WriteHeader(http.StatusUnprocessableEntity)
+		err = ts.ExecuteTemplate(w, "base", data)
+		if err != nil {
+			app.errorLog.Print(err)
+			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+			return
+		}
+
+		return
+	}
+
 	arg := sqlc.CreateSnippetParams{
-		Title:   "Amazing Spider Man",
-		Content: "Today is a beautiful day",
-		Expires: time.Now().AddDate(0, 0, 7),
+		Title:    form.Title,
+		Content:  form.Content,
+		Duration: int32(expires),
 	}
 
 	result, err := app.CreateSnippet(context.Background(), arg)

@@ -3,6 +3,7 @@ package main
 import (
 	"database/sql"
 	"github.com/chauvinhphuoc/snippetbox/internal/db/sqlc"
+	"html/template"
 	"log"
 	"net/http"
 	"os"
@@ -23,6 +24,7 @@ type application struct {
 	errorLog *log.Logger
 	db       *sql.DB
 	*sqlc.Queries
+	templateCache map[string]*template.Template
 }
 
 func main() {
@@ -34,11 +36,17 @@ func main() {
 
 	q := sqlc.New(db)
 
+	templateCache, err := initialTemplateCache()
+	if err != nil {
+		errorLog.Fatal(err)
+	}
+
 	app := &application{
-		infoLog:  infoLog,
-		errorLog: errorLog,
-		db:       db,
-		Queries:  q,
+		infoLog:       infoLog,
+		errorLog:      errorLog,
+		db:            db,
+		Queries:       q,
+		templateCache: templateCache,
 	}
 
 	server := &http.Server{

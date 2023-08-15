@@ -7,23 +7,21 @@ package sqlc
 
 import (
 	"context"
-	"time"
 )
 
 const createSnippet = `-- name: CreateSnippet :one
 INSERT INTO snippets (title, content, created_at, expires)
-VALUES($1, $2, CURRENT_TIMESTAMP, $3)
-RETURNING id
+VALUES ($1, $2, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP + MAKE_INTERVAL(DAYS => $3::int)) RETURNING id
 `
 
 type CreateSnippetParams struct {
-	Title   string    `json:"title"`
-	Content string    `json:"content"`
-	Expires time.Time `json:"expires"`
+	Title    string `json:"title"`
+	Content  string `json:"content"`
+	Duration int32  `json:"duration"`
 }
 
 func (q *Queries) CreateSnippet(ctx context.Context, arg CreateSnippetParams) (int32, error) {
-	row := q.db.QueryRowContext(ctx, createSnippet, arg.Title, arg.Content, arg.Expires)
+	row := q.db.QueryRowContext(ctx, createSnippet, arg.Title, arg.Content, arg.Duration)
 	var id int32
 	err := row.Scan(&id)
 	return id, err
@@ -32,7 +30,8 @@ func (q *Queries) CreateSnippet(ctx context.Context, arg CreateSnippetParams) (i
 const getSnippetNotExpired = `-- name: GetSnippetNotExpired :one
 SELECT id, title, content, created_at, expires
 FROM snippets
-WHERE expires > CURRENT_TIMESTAMP AND id = $1
+WHERE expires > CURRENT_TIMESTAMP
+  AND id = $1
 `
 
 func (q *Queries) GetSnippetNotExpired(ctx context.Context, id int32) (Snippet, error) {
@@ -52,8 +51,7 @@ const getTenLatestSnippets = `-- name: GetTenLatestSnippets :many
 SELECT id, title, content, created_at, expires
 FROM snippets
 WHERE expires > CURRENT_TIMESTAMP
-ORDER BY id DESC
-LIMIT 10
+ORDER BY id DESC LIMIT 10
 `
 
 func (q *Queries) GetTenLatestSnippets(ctx context.Context) ([]Snippet, error) {
