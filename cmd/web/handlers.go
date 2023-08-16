@@ -72,22 +72,15 @@ func (app *application) viewSnippet(w http.ResponseWriter, r *http.Request) {
 }
 
 func (app *application) displayCreateSnippetForm(w http.ResponseWriter, r *http.Request) {
-	files := []string{
-		"./ui/html/base.html",
-		"./ui/html/pages/create-snippet.html",
-		"./ui/html/partials/navbar.html",
+	data := newTemplateData()
+	data.Form = createSnippetForm{
+		Title:       "",
+		Content:     "",
+		Expires:     365, // The value "One year" of radio button "Delete in" is chosen by default.
+		FieldErrors: nil,
 	}
 
-	ts, err := template.ParseFiles(files...)
-	if err != nil {
-		app.serverError(w, err)
-		return
-	}
-
-	err = ts.ExecuteTemplate(w, "base", nil)
-	if err != nil {
-		app.serverError(w, err)
-	}
+	app.render(w, http.StatusOK, "create-snippet.html", data)
 }
 
 // createSnippetForm represents the form data and validation errors
@@ -122,46 +115,30 @@ func (app *application) createSnippetPost(w http.ResponseWriter, r *http.Request
 		FieldErrors: map[string]string{},
 	}
 
+	// validate title
 	if strings.TrimSpace(form.Title) == "" {
 		form.FieldErrors["title"] = "This field cannot be blank"
 	} else if utf8.RuneCountInString(form.Title) > 100 {
 		form.FieldErrors["title"] = "This field cannot be more than 100 characters long"
 	}
 
+	// validate content
 	if strings.TrimSpace(form.Content) == "" {
 		form.FieldErrors["content"] = "This field cannot be blank"
 	}
 
+	// validate expires
 	if expires != 1 && expires != 7 && expires != 365 {
 		form.FieldErrors["expires"] = "This field must equal 1, 7 or 365"
 	}
 
 	// If there are any validation errors, re-display the create-snippet.html with error notifications.
+	// The URL still does not change.
 	if len(form.FieldErrors) > 0 {
 		data := newTemplateData()
 		data.Form = form
 
-		files := []string{
-			"./ui/html/base.html",
-			"./ui/html/pages/create-snippet.html",
-			"./ui/html/partials/navbar.html",
-		}
-
-		ts, err := template.ParseFiles(files...)
-		if err != nil {
-			app.errorLog.Print(err)
-			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-			return
-		}
-
-		w.WriteHeader(http.StatusUnprocessableEntity)
-		err = ts.ExecuteTemplate(w, "base", data)
-		if err != nil {
-			app.errorLog.Print(err)
-			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-			return
-		}
-
+		app.render(w, http.StatusUnprocessableEntity, "create-snippet.html", data)
 		return
 	}
 
@@ -173,8 +150,7 @@ func (app *application) createSnippetPost(w http.ResponseWriter, r *http.Request
 
 	result, err := app.CreateSnippet(context.Background(), arg)
 	if err != nil {
-		app.errorLog.Print(err)
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		app.serverError(w, err)
 		return
 	}
 

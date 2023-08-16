@@ -13,7 +13,7 @@ var functionTemplates = template.FuncMap{
 }
 
 // templateData acts as the holding structure for any dynamic data
-// that we want to pass to out HTML templates.
+// that we want to pass to our HTML templates.
 type templateData struct {
 	CurrentYear int
 	Snippet     sqlc.Snippet   // used for view page
