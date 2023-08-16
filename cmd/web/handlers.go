@@ -6,12 +6,11 @@ import (
 	"errors"
 	"fmt"
 	"github.com/chauvinhphuoc/snippetbox/internal/db/sqlc"
+	"github.com/chauvinhphuoc/snippetbox/internal/validator"
 	"github.com/julienschmidt/httprouter"
 	"html/template"
 	"net/http"
 	"strconv"
-	"strings"
-	"unicode/utf8"
 )
 
 func (app *application) home(w http.ResponseWriter, r *http.Request) {
@@ -74,10 +73,10 @@ func (app *application) viewSnippet(w http.ResponseWriter, r *http.Request) {
 func (app *application) displayCreateSnippetForm(w http.ResponseWriter, r *http.Request) {
 	data := newTemplateData()
 	data.Form = createSnippetForm{
-		Title:       "",
-		Content:     "",
-		Expires:     365, // The value "One year" of radio button "Delete in" is chosen by default.
-		FieldErrors: nil,
+		Title:   "",
+		Content: "",
+		Expires: 365, // The value "One year" of radio button "Delete in" is chosen by default.
+		//Validator: validator.Validator{FieldErrors: nil}, <- this is zero-value
 	}
 
 	app.render(w, http.StatusOK, "create-snippet.html", data)
@@ -86,10 +85,10 @@ func (app *application) displayCreateSnippetForm(w http.ResponseWriter, r *http.
 // createSnippetForm represents the form data and validation errors
 // for the form fields.
 type createSnippetForm struct {
-	Title       string
-	Content     string
-	Expires     int32
-	FieldErrors map[string]string
+	Title               string
+	Content             string
+	Expires             int
+	validator.Validator // By impeding Validator, we can call .Form.FieldErrors in the template without any changes, like before.
 }
 
 func (app *application) createSnippetPost(w http.ResponseWriter, r *http.Request) {
@@ -109,32 +108,33 @@ func (app *application) createSnippetPost(w http.ResponseWriter, r *http.Request
 	}
 
 	form := createSnippetForm{
-		Title:       r.PostForm.Get("title"),
-		Content:     r.PostForm.Get("content"),
-		Expires:     int32(expires),
-		FieldErrors: map[string]string{},
+		Title:   r.PostForm.Get("title"),
+		Content: r.PostForm.Get("content"),
+		Expires: expires,
+		//Validator: validator.Validator{FieldErrors: nil}, <- this is zero-value
 	}
 
 	// validate title
-	if strings.TrimSpace(form.Title) == "" {
-		form.FieldErrors["title"] = "This field cannot be blank"
-	} else if utf8.RuneCountInString(form.Title) > 100 {
-		form.FieldErrors["title"] = "This field cannot be more than 100 characters long"
+	if !validator.IsNotBlank(form.Title) {
+		form.AddFieldError("title", "This field cannot be blank")
+	}
+	if !validator.IsStringNotExceedLimit(form.Title, 100) {
+		form.AddFieldError("title", "This field cannot be more than 100 characters")
 	}
 
 	// validate content
-	if strings.TrimSpace(form.Content) == "" {
-		form.FieldErrors["content"] = "This field cannot be blank"
+	if !validator.IsNotBlank(form.Content) {
+		form.AddFieldError("content", "This field cannot be blank")
 	}
 
 	// validate expires
-	if expires != 1 && expires != 7 && expires != 365 {
-		form.FieldErrors["expires"] = "This field must equal 1, 7 or 365"
+	if validator.IsIntInList(form.Expires, 1, 7, 365) {
+		form.AddFieldError("expires", "This field must equal 1, 7 or 365")
 	}
 
 	// If there are any validation errors, re-display the create-snippet.html with error notifications.
-	// The URL still does not change.
-	if len(form.FieldErrors) > 0 {
+	// The URL path still does not change.
+	if !form.IsNoErrors() {
 		data := newTemplateData()
 		data.Form = form
 
@@ -145,7 +145,7 @@ func (app *application) createSnippetPost(w http.ResponseWriter, r *http.Request
 	arg := sqlc.CreateSnippetParams{
 		Title:    form.Title,
 		Content:  form.Content,
-		Duration: int32(expires),
+		Duration: int32(form.Expires),
 	}
 
 	result, err := app.CreateSnippet(context.Background(), arg)
