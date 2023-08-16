@@ -54,7 +54,7 @@ func main() {
 		Handler: app.routes(),
 	}
 
-	infoLog.Print("Starting server on localhost:4000")
+	infoLog.Print("Starting server on http://localhost:4000")
 	err = server.ListenAndServe()
 	errorLog.Print(err)
 }

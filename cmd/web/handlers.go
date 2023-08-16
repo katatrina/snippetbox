@@ -128,7 +128,7 @@ func (app *application) createSnippetPost(w http.ResponseWriter, r *http.Request
 	}
 
 	// validate expires
-	if validator.IsIntInList(form.Expires, 1, 7, 365) {
+	if !validator.IsIntInList(form.Expires, 1, 7, 365) {
 		form.AddFieldError("expires", "This field must equal 1, 7 or 365")
 	}
 
