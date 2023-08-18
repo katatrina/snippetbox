@@ -17,7 +17,7 @@ func (app *application) routes() http.Handler {
 	router.HandlerFunc(http.MethodGet, "/", app.home)
 	router.HandlerFunc(http.MethodGet, "/snippet/view/:id", app.viewSnippet)
 	router.HandlerFunc(http.MethodGet, "/snippet/create", app.displayCreateSnippetForm)
-	router.HandlerFunc(http.MethodPost, "/snippet/create", app.createSnippetPost)
+	router.HandlerFunc(http.MethodPost, "/snippet/create", app.doCreateSnippet)
 
 	return app.logRequest(router)
 }

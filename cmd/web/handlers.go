@@ -72,7 +72,7 @@ func (app *application) viewSnippet(w http.ResponseWriter, r *http.Request) {
 
 func (app *application) displayCreateSnippetForm(w http.ResponseWriter, r *http.Request) {
 	data := newTemplateData()
-	data.Form = createSnippetForm{
+	data.Form = createSnippetFormResult{
 		Title:   "",
 		Content: "",
 		Expires: 365, // The value "One year" of radio button "Delete in" is chosen by default.
@@ -84,34 +84,20 @@ func (app *application) displayCreateSnippetForm(w http.ResponseWriter, r *http.
 
 // createSnippetForm represents the form data and validation errors
 // for the form fields.
-type createSnippetForm struct {
-	Title               string
-	Content             string
-	Expires             int
-	validator.Validator // By impeding Validator, we can call .Form.FieldErrors in the template without any changes, like before.
+type createSnippetFormResult struct {
+	Title               string `form:"title"`
+	Content             string `form:"content"`
+	Expires             int    `form:"expires"`
+	validator.Validator `form:"-"`
 }
 
-func (app *application) createSnippetPost(w http.ResponseWriter, r *http.Request) {
-	// r.ParseForm() adds any data in POST request bodies to the r.PostForm map.
-	err := r.ParseForm()
-	if err != nil {
-		// I think we need logging here because err may be due to either a server error or client error.
-		app.errorLog.Print(err)
-		app.clientError(w, http.StatusBadRequest)
-		return
-	}
+func (app *application) doCreateSnippet(w http.ResponseWriter, r *http.Request) {
+	var form createSnippetFormResult
 
-	expires, err := strconv.Atoi(r.PostForm.Get("expires"))
+	err := app.decodePostForm(r, &form)
 	if err != nil {
 		app.clientError(w, http.StatusBadRequest)
 		return
-	}
-
-	form := createSnippetForm{
-		Title:   r.PostForm.Get("title"),
-		Content: r.PostForm.Get("content"),
-		Expires: expires,
-		//Validator: validator.Validator{FieldErrors: nil}, <- this is zero-value
 	}
 
 	// validate title

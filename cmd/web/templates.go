@@ -18,7 +18,7 @@ type templateData struct {
 	CurrentYear int
 	Snippet     sqlc.Snippet   // used for view page
 	Snippets    []sqlc.Snippet // used for home page
-	Form        any            // used for create-snippet form
+	Form        any            // used for any HTML form
 }
 
 // newTemplateData returns a *templateData, which contains some fields having default values.

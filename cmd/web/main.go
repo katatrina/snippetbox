@@ -3,6 +3,7 @@ package main
 import (
 	"database/sql"
 	"github.com/chauvinhphuoc/snippetbox/internal/db/sqlc"
+	"github.com/go-playground/form/v4"
 	"html/template"
 	"log"
 	"net/http"
@@ -14,7 +15,7 @@ import (
 var (
 	infoLog        = log.New(os.Stdout, "INFO\t", log.Ldate|log.Ltime)
 	errorLog       = log.New(os.Stderr, "ERROR\t", log.Ldate|log.Ltime|log.Lshortfile)
-	dataSourceName = "postgres://postgres:12345@localhost/snippetbox?sslmode=disable"
+	dataSourceName = "postgres://postgres:12345@localhost:5432/snippetbox?sslmode=disable"
 )
 
 // Everything inside an application is called an application's dependency,
@@ -25,6 +26,7 @@ type application struct {
 	db       *sql.DB
 	*sqlc.Queries
 	templateCache map[string]*template.Template
+	formDecoder   *form.Decoder // A Decoder instance is used to map HTML field values into struct fields.
 }
 
 func main() {
@@ -32,7 +34,7 @@ func main() {
 	if err != nil {
 		errorLog.Fatal(err)
 	}
-	infoLog.Print("Connected to db")
+	infoLog.Print("Connected to database")
 
 	q := sqlc.New(db)
 
@@ -41,12 +43,15 @@ func main() {
 		errorLog.Fatal(err)
 	}
 
+	formDecoder := form.NewDecoder()
+
 	app := &application{
 		infoLog:       infoLog,
 		errorLog:      errorLog,
 		db:            db,
 		Queries:       q,
 		templateCache: templateCache,
+		formDecoder:   formDecoder,
 	}
 
 	server := &http.Server{
