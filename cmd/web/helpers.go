@@ -54,6 +54,8 @@ func (app *application) render(w http.ResponseWriter, status int, page string, d
 	buf.WriteTo(w)
 }
 
+// decodePostForm parses the form data of current request
+// and map to corresponding fields based on struct tags in dst.
 func (app *application) decodePostForm(r *http.Request, dst any) error {
 	// r.ParseForm() adds any data in POST request bodies to the r.PostForm map.
 	err := r.ParseForm()

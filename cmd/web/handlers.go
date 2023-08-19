@@ -61,8 +61,11 @@ func (app *application) viewSnippet(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	flash := app.sessionManager.PopString(r.Context(), "flash")
+
 	data := newTemplateData()
 	data.Snippet = result
+	data.Flash = flash
 
 	err = ts.ExecuteTemplate(w, "base", data)
 	if err != nil {
@@ -139,6 +142,8 @@ func (app *application) doCreateSnippet(w http.ResponseWriter, r *http.Request) 
 		app.serverError(w, err)
 		return
 	}
+
+	app.sessionManager.Put(r.Context(), "flash", "Snippet successfully created!")
 
 	http.Redirect(w, r, fmt.Sprintf("/snippet/view/%v", result), http.StatusSeeOther)
 }

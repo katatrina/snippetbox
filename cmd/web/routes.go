@@ -14,10 +14,15 @@ func (app *application) routes() http.Handler {
 	fileServer := http.FileServer(http.Dir("./ui/static"))
 	router.Handler(http.MethodGet, "/static/*filepath", http.StripPrefix("/static/", fileServer))
 
-	router.HandlerFunc(http.MethodGet, "/", app.home)
-	router.HandlerFunc(http.MethodGet, "/snippet/view/:id", app.viewSnippet)
-	router.HandlerFunc(http.MethodGet, "/snippet/create", app.displayCreateSnippetForm)
-	router.HandlerFunc(http.MethodPost, "/snippet/create", app.doCreateSnippet)
+	//router.HandlerFunc(http.MethodGet, "/", app.home)
+	//router.HandlerFunc(http.MethodGet, "/snippet/view/:id", app.viewSnippet)
+	//router.HandlerFunc(http.MethodGet, "/snippet/create", app.displayCreateSnippetForm)
+	//router.HandlerFunc(http.MethodPost, "/snippet/create", app.doCreateSnippet)
+
+	router.Handler(http.MethodGet, "/", app.sessionManager.LoadAndSave(http.HandlerFunc(app.home)))
+	router.Handler(http.MethodGet, "/snippet/view/:id", app.sessionManager.LoadAndSave(http.HandlerFunc(app.viewSnippet)))
+	router.Handler(http.MethodGet, "/snippet/create", app.sessionManager.LoadAndSave(http.HandlerFunc(app.displayCreateSnippetForm)))
+	router.Handler(http.MethodPost, "/snippet/create", app.sessionManager.LoadAndSave(http.HandlerFunc(app.doCreateSnippet)))
 
 	return app.logRequest(router)
 }

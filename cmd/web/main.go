@@ -2,12 +2,15 @@ package main
 
 import (
 	"database/sql"
+	"github.com/alexedwards/scs/postgresstore"
+	"github.com/alexedwards/scs/v2"
 	"github.com/chauvinhphuoc/snippetbox/internal/db/sqlc"
 	"github.com/go-playground/form/v4"
 	"html/template"
 	"log"
 	"net/http"
 	"os"
+	"time"
 
 	_ "github.com/lib/pq"
 )
@@ -25,8 +28,9 @@ type application struct {
 	errorLog *log.Logger
 	db       *sql.DB
 	*sqlc.Queries
-	templateCache map[string]*template.Template
-	formDecoder   *form.Decoder // A Decoder instance is used to map HTML field values into struct fields.
+	templateCache  map[string]*template.Template
+	formDecoder    *form.Decoder // A Decoder instance is used to map HTML field values into struct fields.
+	sessionManager *scs.SessionManager
 }
 
 func main() {
@@ -45,13 +49,18 @@ func main() {
 
 	formDecoder := form.NewDecoder()
 
+	sessionManager := scs.New()
+	sessionManager.Lifetime = 12 * time.Hour
+	sessionManager.Store = postgresstore.New(db)
+
 	app := &application{
-		infoLog:       infoLog,
-		errorLog:      errorLog,
-		db:            db,
-		Queries:       q,
-		templateCache: templateCache,
-		formDecoder:   formDecoder,
+		infoLog:        infoLog,
+		errorLog:       errorLog,
+		db:             db,
+		Queries:        q,
+		templateCache:  templateCache,
+		formDecoder:    formDecoder,
+		sessionManager: sessionManager,
 	}
 
 	server := &http.Server{
