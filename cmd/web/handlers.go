@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"database/sql"
 	"errors"
 	"fmt"
@@ -16,7 +15,7 @@ import (
 )
 
 func (app *application) home(w http.ResponseWriter, r *http.Request) {
-	result, err := app.GetTenLatestSnippets(context.Background())
+	result, err := app.GetTenLatestSnippets(r.Context())
 	if err != nil {
 		app.serverError(w, err)
 		return
@@ -38,7 +37,7 @@ func (app *application) viewSnippet(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	result, err := app.GetSnippetNotExpired(context.Background(), int32(id))
+	result, err := app.GetSnippetNotExpired(r.Context(), int32(id))
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			app.clientError(w, http.StatusNotFound)
@@ -118,7 +117,7 @@ func (app *application) doCreateSnippet(w http.ResponseWriter, r *http.Request) 
 		Duration: int32(form.Expires),
 	}
 
-	result, err := app.CreateSnippet(context.Background(), arg)
+	result, err := app.CreateSnippet(r.Context(), arg)
 	if err != nil {
 		app.serverError(w, err)
 		return
@@ -220,15 +219,99 @@ func (app *application) doCreateUser(w http.ResponseWriter, r *http.Request) {
 
 	app.sessionManager.Put(r.Context(), "flash", "Your signup was successful. Please log in.")
 
+	// Redirect user to the login page.
 	http.Redirect(w, r, "/user/login", http.StatusSeeOther)
 }
 
 func (app *application) displayLoginPage(w http.ResponseWriter, r *http.Request) {
-	fmt.Fprintln(w, "Display a HTML form for logging in a user...")
+	data := app.newTemplateData(r)
+	data.Form = userLoginFormResult{
+		Email:     "",
+		Password:  "",
+		Validator: validator.Validator{},
+	}
+
+	app.render(w, http.StatusOK, "login.html", data)
+}
+
+type userLoginFormResult struct {
+	Email               string `form:"email"`
+	Password            string `form:"password"`
+	validator.Validator `form:"-"`
 }
 
 func (app *application) doLoginUser(w http.ResponseWriter, r *http.Request) {
-	fmt.Fprintln(w, "Authenticate and login the user...")
+	var form userLoginFormResult
+
+	err := app.decodePostForm(r, &form)
+	if err != nil {
+		app.clientError(w, http.StatusBadRequest)
+		return
+	}
+
+	if !validator.IsNotBlank(form.Email) {
+		form.AddFieldError("email", "This field cannot be blank")
+	}
+
+	if !validator.IsMatchRegex(form.Email, validator.EmailRX) {
+		form.AddFieldError("email", "This field must be a valid email address")
+	}
+
+	if !validator.IsNotBlank(form.Password) {
+		form.AddFieldError("password", "This field cannot be blank")
+	}
+
+	if !form.IsNoErrors() {
+		data := app.newTemplateData(r)
+		data.Form = form
+
+		app.render(w, http.StatusUnprocessableEntity, "login.html", data)
+		return
+	}
+
+	// Check whether user with the email provided exists.
+	user, err := app.GetUserByEmail(r.Context(), form.Email)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			form.AddGenericFieldError("Email or password is incorrect")
+
+			data := app.newTemplateData(r)
+			data.Form = form
+			app.render(w, http.StatusUnprocessableEntity, "login.html", data)
+		} else {
+			app.serverError(w, err)
+		}
+
+		return
+	}
+
+	// Check whether the hashed password and plain-text password that user provided match.
+	err = bcrypt.CompareHashAndPassword([]byte(user.HashedPassword), []byte(form.Password))
+	if err != nil {
+		if errors.Is(err, bcrypt.ErrMismatchedHashAndPassword) {
+			form.AddGenericFieldError("Email or password is incorrect")
+
+			data := app.newTemplateData(r)
+			data.Form = form
+			app.render(w, http.StatusUnprocessableEntity, "login.html", data)
+		} else {
+			app.serverError(w, err)
+		}
+
+		return
+	}
+
+	err = app.sessionManager.RenewToken(r.Context())
+	if err != nil {
+		app.serverError(w, err)
+		return
+	}
+
+	// Add the ID of the current user to the session, so that they are now
+	// 'logged in'.
+	app.sessionManager.Put(r.Context(), "authenticatedUserID", user.ID)
+
+	http.Redirect(w, r, "/", http.StatusSeeOther)
 }
 
 func (app *application) doLogoutUser(w http.ResponseWriter, r *http.Request) {

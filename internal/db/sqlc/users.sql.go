@@ -24,3 +24,19 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) error {
 	_, err := q.db.ExecContext(ctx, createUser, arg.Name, arg.Email, arg.HashedPassword)
 	return err
 }
+
+const getUserByEmail = `-- name: GetUserByEmail :one
+SELECT id, hashed_password FROM users WHERE email = $1
+`
+
+type GetUserByEmailRow struct {
+	ID             int32  `json:"id"`
+	HashedPassword string `json:"hashed_password"`
+}
+
+func (q *Queries) GetUserByEmail(ctx context.Context, email string) (GetUserByEmailRow, error) {
+	row := q.db.QueryRowContext(ctx, getUserByEmail, email)
+	var i GetUserByEmailRow
+	err := row.Scan(&i.ID, &i.HashedPassword)
+	return i, err
+}
