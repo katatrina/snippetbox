@@ -4,7 +4,7 @@ GitHub's [Gist](https://gist.github.com/).
 ## Prerequisites
 
 - Go >= 1.20
-- PostgreSQL 15
+- PostgresSQL 15
 
 ## Available routes
 

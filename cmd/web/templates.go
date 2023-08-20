@@ -3,6 +3,7 @@ package main
 import (
 	"github.com/chauvinhphuoc/snippetbox/internal/db/sqlc"
 	"html/template"
+	"net/http"
 	"path/filepath"
 	"time"
 )
@@ -15,21 +16,22 @@ var functionTemplates = template.FuncMap{
 // templateData acts as the holding structure for any dynamic data
 // that we want to pass to our HTML templates.
 type templateData struct {
-	CurrentYear int
-	Snippet     sqlc.Snippet   // used for view page
+	CurrentYear int            // used for printing current year
+	Snippet     sqlc.Snippet   // used for view snippet page
 	Snippets    []sqlc.Snippet // used for home page
 	Form        any            // used for any HTML form
-	Flash       string
+	Flash       string         // used for flash messages
 }
 
 // newTemplateData returns a *templateData, which contains some fields having default values.
-func newTemplateData() *templateData {
+func (app *application) newTemplateData(r *http.Request) *templateData {
 	return &templateData{
 		CurrentYear: time.Now().Year(),
+		Flash:       app.sessionManager.PopString(r.Context(), "flash"), // The flash message is auto included the next time any page is rendered.
 	}
 }
 
-// initialTemplateCache parses all template files only one when application is starting running,
+// initialTemplateCache parses all template files once when application is starting running,
 // and storing those parsed template in an in-memory cache.
 func initialTemplateCache() (map[string]*template.Template, error) {
 	caches := make(map[string]*template.Template)
