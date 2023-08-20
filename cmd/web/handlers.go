@@ -8,8 +8,11 @@ import (
 	"github.com/chauvinhphuoc/snippetbox/internal/db/sqlc"
 	"github.com/chauvinhphuoc/snippetbox/internal/validator"
 	"github.com/julienschmidt/httprouter"
+	"github.com/lib/pq"
+	"golang.org/x/crypto/bcrypt"
 	"net/http"
 	"strconv"
+	"strings"
 )
 
 func (app *application) home(w http.ResponseWriter, r *http.Request) {
@@ -184,7 +187,40 @@ func (app *application) doCreateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	fmt.Fprintf(w, "Create a user ...")
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(form.Password), 12)
+	if err != nil {
+		app.serverError(w, err)
+		return
+	}
+
+	arg := sqlc.CreateUserParams{
+		Name:           form.Name,
+		Email:          form.Email,
+		HashedPassword: string(hashedPassword),
+	}
+
+	err = app.CreateUser(r.Context(), arg)
+	if err != nil {
+		var postgreSQLError *pq.Error
+		if errors.As(err, &postgreSQLError) {
+			code := postgreSQLError.Code.Name()
+			if code == "unique_violation" && strings.Contains(postgreSQLError.Message, "users_uc_email") {
+				form.AddFieldError("email", "Email address is already in use")
+
+				data := app.newTemplateData(r)
+				data.Form = form
+				app.render(w, http.StatusUnprocessableEntity, "signup.html", data)
+				return
+			}
+		}
+
+		app.serverError(w, err)
+		return
+	}
+
+	app.sessionManager.Put(r.Context(), "flash", "Your signup was successful. Please log in.")
+
+	http.Redirect(w, r, "/user/login", http.StatusSeeOther)
 }
 
 func (app *application) displayLoginPage(w http.ResponseWriter, r *http.Request) {
