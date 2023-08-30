@@ -16,18 +16,20 @@ var functionTemplates = template.FuncMap{
 // templateData acts as the holding structure for any dynamic data
 // that we want to pass to our HTML templates.
 type templateData struct {
-	CurrentYear int            // used for printing current year
-	Snippet     sqlc.Snippet   // used for view snippet page
-	Snippets    []sqlc.Snippet // used for home page
-	Form        any            // used for any HTML form
-	Flash       string         // used for flash messages
+	CurrentYear     int            // used for printing current year
+	Snippet         sqlc.Snippet   // used for view snippet page
+	Snippets        []sqlc.Snippet // used for home page
+	Form            any            // used for any HTML form
+	Flash           string         // used for flash messages
+	IsAuthenticated bool           // used for authenticating user
 }
 
 // newTemplateData returns a *templateData, which contains some fields having default values.
 func (app *application) newTemplateData(r *http.Request) *templateData {
 	return &templateData{
-		CurrentYear: time.Now().Year(),
-		Flash:       app.sessionManager.PopString(r.Context(), "flash"), // The flash message is auto included the next time any page is rendered.
+		CurrentYear:     time.Now().Year(),
+		Flash:           app.sessionManager.PopString(r.Context(), "flash"), // The flash message is auto included the next time any page is rendered.
+		IsAuthenticated: app.isAuthenticated(r),
 	}
 }
 

@@ -1,14 +1,14 @@
 {{define "title"}}
-    {{with .Snippet}}Snippet #{{.ID}}{{end}}
+{{with .Snippet}}Snippet #{{.ID}}{{end}}
 {{end}}
 
 {{define "main"}}
-    {{with .Snippet}}
-    <div class='snippet'>
-        <div class='metadata'>
-            <strong>{{.Title}}</strong>
-            <span>#{{.ID}}</span>
-        </div>
+{{with .Snippet}}
+<div class='snippet'>
+    <div class='metadata'>
+        <strong>{{.Title}}</strong>
+        <span>#{{.ID}}</span>
+    </div>
     <pre><code>{{.Content}}</code></pre>
     <div class='metadata'>
         <time>Created: {{humanDate .CreatedAt}}</time>

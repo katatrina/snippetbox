@@ -1,8 +1,6 @@
 {{define "title"}}Login{{end}}
 {{define "main"}}
 <form action='/user/login' method='POST' novalidate>
-    <!-- Notice that here we are looping over the NonFieldErrors and displaying
-    them, if any exist -->
     {{with .Form.GenericError}}
     <div class='error'>{{.}}</div>
     {{end}}

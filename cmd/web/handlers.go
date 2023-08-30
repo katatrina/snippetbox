@@ -14,19 +14,21 @@ import (
 	"strings"
 )
 
+// GET /
 func (app *application) home(w http.ResponseWriter, r *http.Request) {
-	result, err := app.GetTenLatestSnippets(r.Context())
+	snippets, err := app.GetTenLatestSnippets(r.Context())
 	if err != nil {
 		app.serverError(w, err)
 		return
 	}
 
 	data := app.newTemplateData(r)
-	data.Snippets = result
+	data.Snippets = snippets
 
 	app.render(w, http.StatusOK, "home.html", data)
 }
 
+// GET /snippet/view/:id
 func (app *application) viewSnippet(w http.ResponseWriter, r *http.Request) {
 	// params are parameters from URL path, not query parameters
 	params := httprouter.ParamsFromContext(r.Context())
@@ -37,7 +39,7 @@ func (app *application) viewSnippet(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	result, err := app.GetSnippetNotExpired(r.Context(), int32(id))
+	snippet, err := app.GetSnippetNotExpired(r.Context(), int32(id))
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			app.clientError(w, http.StatusNotFound)
@@ -48,24 +50,23 @@ func (app *application) viewSnippet(w http.ResponseWriter, r *http.Request) {
 	}
 
 	data := app.newTemplateData(r)
-	data.Snippet = result
+	data.Snippet = snippet
 
 	app.render(w, http.StatusOK, "view.html", data)
 }
 
+// GET /snippet/create
 func (app *application) displayCreateSnippetForm(w http.ResponseWriter, r *http.Request) {
 	data := app.newTemplateData(r)
 	data.Form = createSnippetFormResult{
-		Title:   "",
-		Content: "",
+		// Other fields get zero-value.
 		Expires: 365, // The value "One year" of radio button "Delete in" is chosen by default.
-		//Validator: validator.Validator{FieldErrors: nil}, <- this is zero-value
 	}
 
 	app.render(w, http.StatusOK, "create-snippet.html", data)
 }
 
-// createSnippetForm represents the form data and validation errors
+// createSnippetFormResult represents the form data and validation errors
 // for the form fields.
 type createSnippetFormResult struct {
 	Title               string `form:"title"`
@@ -74,6 +75,7 @@ type createSnippetFormResult struct {
 	validator.Validator `form:"-"`
 }
 
+// POST /snippet/create
 func (app *application) doCreateSnippet(w http.ResponseWriter, r *http.Request) {
 	var form createSnippetFormResult
 
@@ -117,25 +119,21 @@ func (app *application) doCreateSnippet(w http.ResponseWriter, r *http.Request) 
 		Duration: int32(form.Expires),
 	}
 
-	result, err := app.CreateSnippet(r.Context(), arg)
+	snippet, err := app.CreateSnippet(r.Context(), arg)
 	if err != nil {
 		app.serverError(w, err)
 		return
 	}
 
-	app.sessionManager.Put(r.Context(), "flash", "Snippet successfully created!")
+	app.sessionManager.Put(r.Context(), "flash", "Create snippet successfully.")
 
-	http.Redirect(w, r, fmt.Sprintf("/snippet/view/%v", result), http.StatusSeeOther)
+	http.Redirect(w, r, fmt.Sprintf("/snippet/view/%v", snippet), http.StatusSeeOther)
 }
 
+// GET /user/signup
 func (app *application) displaySignupPage(w http.ResponseWriter, r *http.Request) {
 	data := app.newTemplateData(r)
-	data.Form = userSignupFormResult{
-		Name:      "",
-		Email:     "",
-		Password:  "",
-		Validator: validator.Validator{},
-	}
+	data.Form = userSignupFormResult{}
 
 	app.render(w, http.StatusOK, "signup.html", data)
 }
@@ -147,12 +145,14 @@ type userSignupFormResult struct {
 	validator.Validator `form:"-"`
 }
 
-func (app *application) doCreateUser(w http.ResponseWriter, r *http.Request) {
+// POST /user/signup
+func (app *application) doSignupUser(w http.ResponseWriter, r *http.Request) {
 	var form userSignupFormResult
 
 	err := app.decodePostForm(r, &form)
 	if err != nil {
 		app.clientError(w, http.StatusBadRequest)
+		return
 	}
 
 	// Validate the form contents using our helper functions.
@@ -186,6 +186,7 @@ func (app *application) doCreateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Else, try to insert user's information to database.
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(form.Password), 12)
 	if err != nil {
 		app.serverError(w, err)
@@ -223,13 +224,10 @@ func (app *application) doCreateUser(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/user/login", http.StatusSeeOther)
 }
 
+// GET /user/login
 func (app *application) displayLoginPage(w http.ResponseWriter, r *http.Request) {
 	data := app.newTemplateData(r)
-	data.Form = userLoginFormResult{
-		Email:     "",
-		Password:  "",
-		Validator: validator.Validator{},
-	}
+	data.Form = userLoginFormResult{}
 
 	app.render(w, http.StatusOK, "login.html", data)
 }
@@ -240,6 +238,7 @@ type userLoginFormResult struct {
 	validator.Validator `form:"-"`
 }
 
+// POST /user/login
 func (app *application) doLoginUser(w http.ResponseWriter, r *http.Request) {
 	var form userLoginFormResult
 
@@ -273,7 +272,7 @@ func (app *application) doLoginUser(w http.ResponseWriter, r *http.Request) {
 	user, err := app.GetUserByEmail(r.Context(), form.Email)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			form.AddGenericFieldError("Email or password is incorrect")
+			form.AddGenericError("Email or password is incorrect")
 
 			data := app.newTemplateData(r)
 			data.Form = form
@@ -289,7 +288,7 @@ func (app *application) doLoginUser(w http.ResponseWriter, r *http.Request) {
 	err = bcrypt.CompareHashAndPassword([]byte(user.HashedPassword), []byte(form.Password))
 	if err != nil {
 		if errors.Is(err, bcrypt.ErrMismatchedHashAndPassword) {
-			form.AddGenericFieldError("Email or password is incorrect")
+			form.AddGenericError("Email or password is incorrect")
 
 			data := app.newTemplateData(r)
 			data.Form = form
@@ -301,6 +300,12 @@ func (app *application) doLoginUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Until here, the user is authenticated successfully.
+
+	// Use the RenewToken() method on the current session to change the session
+	// ID. It's good practice to generate a new session ID when the
+	// authentication state or privilege levels changes for the user (e.g. login
+	// and logout operations).
 	err = app.sessionManager.RenewToken(r.Context())
 	if err != nil {
 		app.serverError(w, err)
@@ -309,11 +314,29 @@ func (app *application) doLoginUser(w http.ResponseWriter, r *http.Request) {
 
 	// Add the ID of the current user to the session, so that they are now
 	// 'logged in'.
-	app.sessionManager.Put(r.Context(), "authenticatedUserID", user.ID)
+	app.sessionManager.Put(r.Context(), "authenticatedUserID", int(user.ID))
 
-	http.Redirect(w, r, "/", http.StatusSeeOther)
+	// Redirect the user to the create snippet page.
+	http.Redirect(w, r, "/snippet/create", http.StatusSeeOther)
 }
 
+// POST /user/logout
 func (app *application) doLogoutUser(w http.ResponseWriter, r *http.Request) {
-	fmt.Fprintln(w, "Logout the user...")
+	// Use the RenewToken() method on the current session to change the session
+	// ID again.
+	err := app.sessionManager.RenewToken(r.Context())
+	if err != nil {
+		app.serverError(w, err)
+		return
+	}
+
+	// Remove the authenticatedUserID from the session data so that user is
+	// 'logged out'.
+	app.sessionManager.Remove(r.Context(), "authenticatedUserID")
+
+	// Add a flash message to the session to confirm to the user that they've been
+	// logged out.
+	app.sessionManager.Put(r.Context(), "flash", "You've been logged out successfully!")
+
+	http.Redirect(w, r, "/user/login", http.StatusSeeOther)
 }

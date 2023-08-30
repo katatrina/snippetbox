@@ -21,12 +21,12 @@ var (
 	dataSourceName = "postgres://postgres:12345@localhost:5432/snippetbox?sslmode=disable"
 )
 
-// Everything inside an application is called an application's dependency,
+// Everything inside an application is called a dependency,
 // it sticks to the application for doing tasks.
 type application struct {
 	infoLog  *log.Logger
 	errorLog *log.Logger
-	db       *sql.DB
+	db       *sql.DB // In case of executing a transaction.
 	*sqlc.Queries
 	templateCache  map[string]*template.Template
 	formDecoder    *form.Decoder // A Decoder instance is used to map HTML field values into struct fields.
@@ -50,8 +50,10 @@ func main() {
 	formDecoder := form.NewDecoder()
 
 	sessionManager := scs.New()
-	sessionManager.Lifetime = 12 * time.Hour
+	// Configure the session manager to use our PostgreSQL database as the session store (in the table "sessions").
 	sessionManager.Store = postgresstore.New(db)
+	// Sessions automatically expire 12 hours after first being created.
+	sessionManager.Lifetime = 12 * time.Hour
 
 	app := &application{
 		infoLog:        infoLog,

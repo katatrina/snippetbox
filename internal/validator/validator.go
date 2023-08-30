@@ -39,7 +39,7 @@ func (v *Validator) AddFieldError(key, message string) {
 	}
 }
 
-func (v *Validator) AddGenericFieldError(message string) {
+func (v *Validator) AddGenericError(message string) {
 	v.GenericError = message
 }
 

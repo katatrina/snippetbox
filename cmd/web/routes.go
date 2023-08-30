@@ -2,6 +2,7 @@ package main
 
 import (
 	"github.com/julienschmidt/httprouter"
+	"github.com/justinas/alice"
 	"net/http"
 )
 
@@ -14,21 +15,21 @@ func (app *application) routes() http.Handler {
 	fileServer := http.FileServer(http.Dir("./ui/static"))
 	router.Handler(http.MethodGet, "/static/*filepath", http.StripPrefix("/static/", fileServer))
 
-	//router.HandlerFunc(http.MethodGet, "/", app.home)
-	//router.HandlerFunc(http.MethodGet, "/snippet/view/:id", app.viewSnippet)
-	//router.HandlerFunc(http.MethodGet, "/snippet/create", app.displayCreateSnippetForm)
-	//router.HandlerFunc(http.MethodPost, "/snippet/create", app.doCreateSnippet)
+	dynamic := alice.New(app.sessionManager.LoadAndSave, app.authenticate)
 
-	router.Handler(http.MethodGet, "/", app.sessionManager.LoadAndSave(http.HandlerFunc(app.home)))
-	router.Handler(http.MethodGet, "/snippet/view/:id", app.sessionManager.LoadAndSave(http.HandlerFunc(app.viewSnippet)))
-	router.Handler(http.MethodGet, "/snippet/create", app.sessionManager.LoadAndSave(http.HandlerFunc(app.displayCreateSnippetForm)))
-	router.Handler(http.MethodPost, "/snippet/create", app.sessionManager.LoadAndSave(http.HandlerFunc(app.doCreateSnippet)))
+	router.Handler(http.MethodGet, "/", dynamic.ThenFunc(app.home))
+	router.Handler(http.MethodGet, "/snippet/view/:id", dynamic.ThenFunc(app.viewSnippet))
+	router.Handler(http.MethodGet, "/user/signup", dynamic.ThenFunc(app.displaySignupPage))
+	router.Handler(http.MethodPost, "/user/signup", dynamic.ThenFunc(app.doSignupUser))
+	router.Handler(http.MethodGet, "/user/login", dynamic.ThenFunc(app.displayLoginPage))
+	router.Handler(http.MethodPost, "/user/login", dynamic.ThenFunc(app.doLoginUser))
 
-	router.Handler(http.MethodGet, "/user/signup", app.sessionManager.LoadAndSave(http.HandlerFunc(app.displaySignupPage)))
-	router.Handler(http.MethodPost, "/user/signup", app.sessionManager.LoadAndSave(http.HandlerFunc(app.doCreateUser)))
-	router.Handler(http.MethodGet, "/user/login", app.sessionManager.LoadAndSave(http.HandlerFunc(app.displayLoginPage)))
-	router.Handler(http.MethodPost, "/user/login", app.sessionManager.LoadAndSave(http.HandlerFunc(app.doLoginUser)))
-	router.Handler(http.MethodPost, "/user/logout", app.sessionManager.LoadAndSave(http.HandlerFunc(app.doLogoutUser)))
+	protected := dynamic.Append(app.requireAuthentication)
 
-	return app.logRequest(router)
+	router.Handler(http.MethodGet, "/snippet/create", protected.ThenFunc(app.displayCreateSnippetForm))
+	router.Handler(http.MethodPost, "/snippet/create", protected.ThenFunc(app.doCreateSnippet))
+	router.Handler(http.MethodPost, "/user/logout", protected.ThenFunc(app.doLogoutUser))
+
+	standard := alice.New(app.logRequest)
+	return standard.Then(router)
 }
