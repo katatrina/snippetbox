@@ -1,16 +1,18 @@
 This application lets people paste and share snippets of text - a bit like [Pastebin](https://pastebin.pl/) or
 GitHub's [Gist](https://gist.github.com/).
+This project uses
+Session-Cookie [Authentication](https://blog.bytebytego.com/i/112781858/session-cookie-authentication).
 
 ## Prerequisites
 
 - Go >= 1.20
 - PostgresSQL 15
 
-## Database configurations
+## Setups
 
-## Application setups
-
-## Workflow
+- Type `go get .` to install all project dependencies.
+- Configure database source name and schema in files **cmd/web/main** and **internal/db/migrations**.
+- Type `go run ./cmd/web` to start application.
 
 ## Available routes
 
@@ -26,3 +28,4 @@ GitHub's [Gist](https://gist.github.com/).
 | POST   | /user/login       | doLoginUser              | Authenticate and login the user                |
 | POST   | /user/logout      | doLogoutUser             | Logout the user                                |
 | GET    | /static/*filepath | http.FileServer          | Serve a specific static file                   |
+| GET    | /account/view     | viewAccount              | View account's information for each user       |

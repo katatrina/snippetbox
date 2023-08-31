@@ -9,3 +9,6 @@ WHERE email = $1;
 
 -- name: IsUserExist :one
 SELECT EXISTS(SELECT true FROM users WHERE id = $1);
+
+-- name: GetUserByID :one
+SELECT name, email, created_at FROM users WHERE id = $1;

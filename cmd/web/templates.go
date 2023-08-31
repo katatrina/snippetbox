@@ -16,12 +16,13 @@ var functionTemplates = template.FuncMap{
 // templateData acts as the holding structure for any dynamic data
 // that we want to pass to our HTML templates.
 type templateData struct {
-	CurrentYear     int            // used for printing current year
-	Snippet         sqlc.Snippet   // used for view snippet page
-	Snippets        []sqlc.Snippet // used for home page
-	Form            any            // used for any HTML form
-	Flash           string         // used for flash messages
-	IsAuthenticated bool           // used for authenticating user
+	CurrentYear     int                 // used for printing current year
+	Snippet         sqlc.Snippet        // used for view snippet page
+	Snippets        []sqlc.Snippet      // used for home page
+	Form            any                 // used for any HTML form
+	Flash           string              // used for flash messages
+	IsAuthenticated bool                // used for authenticating user
+	User            sqlc.GetUserByIDRow // used for account page
 }
 
 // newTemplateData returns a *templateData, which contains some fields having default values.

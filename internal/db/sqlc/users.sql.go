@@ -7,6 +7,7 @@ package sqlc
 
 import (
 	"context"
+	"time"
 )
 
 const createUser = `-- name: CreateUser :exec
@@ -26,7 +27,9 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) error {
 }
 
 const getUserByEmail = `-- name: GetUserByEmail :one
-SELECT id, hashed_password FROM users WHERE email = $1
+SELECT id, hashed_password
+FROM users
+WHERE email = $1
 `
 
 type GetUserByEmailRow struct {
@@ -38,6 +41,23 @@ func (q *Queries) GetUserByEmail(ctx context.Context, email string) (GetUserByEm
 	row := q.db.QueryRowContext(ctx, getUserByEmail, email)
 	var i GetUserByEmailRow
 	err := row.Scan(&i.ID, &i.HashedPassword)
+	return i, err
+}
+
+const getUserByID = `-- name: GetUserByID :one
+SELECT name, email, created_at FROM users WHERE id = $1
+`
+
+type GetUserByIDRow struct {
+	Name      string    `json:"name"`
+	Email     string    `json:"email"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+func (q *Queries) GetUserByID(ctx context.Context, id int32) (GetUserByIDRow, error) {
+	row := q.db.QueryRowContext(ctx, getUserByID, id)
+	var i GetUserByIDRow
+	err := row.Scan(&i.Name, &i.Email, &i.CreatedAt)
 	return i, err
 }
 
