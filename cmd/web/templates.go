@@ -21,7 +21,7 @@ type templateData struct {
 	Snippets        []sqlc.Snippet      // used for home page
 	Form            any                 // used for any HTML form
 	Flash           string              // used for flash messages
-	IsAuthenticated bool                // used for authenticating user
+	IsAuthenticated bool                // used for hidden information from unauthenticated user
 	User            sqlc.GetUserByIDRow // used for account page
 }
 
@@ -29,14 +29,14 @@ type templateData struct {
 func (app *application) newTemplateData(r *http.Request) *templateData {
 	return &templateData{
 		CurrentYear:     time.Now().Year(),
-		Flash:           app.sessionManager.PopString(r.Context(), "flash"), // The flash message is auto included the next time any page is rendered.
+		Flash:           app.sessionManager.PopString(r.Context(), "flash"),
 		IsAuthenticated: app.isAuthenticated(r),
 	}
 }
 
-// initialTemplateCache parses all template files once when application is starting running,
+// initializeTemplateCache parses all template files once when application is starting running,
 // and storing those parsed template in an in-memory cache.
-func initialTemplateCache() (map[string]*template.Template, error) {
+func initializeTemplateCache() (map[string]*template.Template, error) {
 	caches := make(map[string]*template.Template)
 
 	// Get all relative file paths inside "pages" directory

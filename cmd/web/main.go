@@ -42,7 +42,7 @@ func main() {
 
 	q := sqlc.New(db)
 
-	templateCache, err := initialTemplateCache()
+	templateCache, err := initializeTemplateCache()
 	if err != nil {
 		errorLog.Fatal(err)
 	}

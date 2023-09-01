@@ -187,6 +187,7 @@ func (app *application) doSignupUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Else, try to insert user's information to database.
+
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(form.Password), 12)
 	if err != nil {
 		app.serverError(w, err)
@@ -341,12 +342,14 @@ func (app *application) doLogoutUser(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/user/login", http.StatusSeeOther)
 }
 
+// GET /about
 func (app *application) about(w http.ResponseWriter, r *http.Request) {
 	data := app.newTemplateData(r)
 
 	app.render(w, http.StatusOK, "about.html", data)
 }
 
+// GET /account/view
 func (app *application) viewAccount(w http.ResponseWriter, r *http.Request) {
 	userID := app.sessionManager.GetInt(r.Context(), "authenticatedUserID")
 
