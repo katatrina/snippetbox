@@ -26,6 +26,19 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) error {
 	return err
 }
 
+const getPasswordByID = `-- name: GetPasswordByID :one
+SELECT hashed_password
+FROM users
+WHERE id = $1
+`
+
+func (q *Queries) GetPasswordByID(ctx context.Context, id int32) (string, error) {
+	row := q.db.QueryRowContext(ctx, getPasswordByID, id)
+	var hashed_password string
+	err := row.Scan(&hashed_password)
+	return hashed_password, err
+}
+
 const getUserByEmail = `-- name: GetUserByEmail :one
 SELECT id, hashed_password
 FROM users
@@ -45,7 +58,9 @@ func (q *Queries) GetUserByEmail(ctx context.Context, email string) (GetUserByEm
 }
 
 const getUserByID = `-- name: GetUserByID :one
-SELECT name, email, created_at FROM users WHERE id = $1
+SELECT name, email, created_at
+FROM users
+WHERE id = $1
 `
 
 type GetUserByIDRow struct {
@@ -70,4 +85,20 @@ func (q *Queries) IsUserExist(ctx context.Context, id int32) (bool, error) {
 	var exists bool
 	err := row.Scan(&exists)
 	return exists, err
+}
+
+const updateUserPassword = `-- name: UpdateUserPassword :exec
+UPDATE users
+SET hashed_password = $1
+WHERE id = $2
+`
+
+type UpdateUserPasswordParams struct {
+	HashedPassword string `json:"hashed_password"`
+	ID             int32  `json:"id"`
+}
+
+func (q *Queries) UpdateUserPassword(ctx context.Context, arg UpdateUserPasswordParams) error {
+	_, err := q.db.ExecContext(ctx, updateUserPassword, arg.HashedPassword, arg.ID)
+	return err
 }

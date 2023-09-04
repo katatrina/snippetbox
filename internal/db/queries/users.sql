@@ -11,4 +11,16 @@ WHERE email = $1;
 SELECT EXISTS(SELECT true FROM users WHERE id = $1);
 
 -- name: GetUserByID :one
-SELECT name, email, created_at FROM users WHERE id = $1;
+SELECT name, email, created_at
+FROM users
+WHERE id = $1;
+
+-- name: GetPasswordByID :one
+SELECT hashed_password
+FROM users
+WHERE id = $1;
+
+-- name: UpdateUserPassword :exec
+UPDATE users
+SET hashed_password = $1
+WHERE id = $2;

@@ -56,7 +56,7 @@ func (app *application) viewSnippet(w http.ResponseWriter, r *http.Request) {
 }
 
 // GET /snippet/create
-func (app *application) displayCreateSnippetForm(w http.ResponseWriter, r *http.Request) {
+func (app *application) displayCreateSnippetPage(w http.ResponseWriter, r *http.Request) {
 	data := app.newTemplateData(r)
 	data.Form = createSnippetFormResult{
 		// Other fields get zero-value.
@@ -369,4 +369,102 @@ func (app *application) viewAccount(w http.ResponseWriter, r *http.Request) {
 	data.User = user
 
 	app.render(w, http.StatusOK, "account.html", data)
+}
+
+func (app *application) displayChangeUserPasswordPage(w http.ResponseWriter, r *http.Request) {
+	data := app.newTemplateData(r)
+	data.Form = changeUserPasswordFormResult{}
+
+	app.render(w, http.StatusOK, "change-password.html", data)
+}
+
+type changeUserPasswordFormResult struct {
+	CurrentPassword         string `form:"currentPassword"`
+	NewPassword             string `form:"newPassword"`
+	NewPasswordConfirmation string `form:"newPasswordConfirmation"`
+	validator.Validator     `form:"-"`
+}
+
+func (app *application) doUpdateUserPassword(w http.ResponseWriter, r *http.Request) {
+	var form changeUserPasswordFormResult
+
+	err := app.decodePostForm(r, &form)
+	if err != nil {
+		app.clientError(w, http.StatusBadRequest)
+		return
+	}
+
+	if !validator.IsNotBlank(form.CurrentPassword) {
+		form.AddFieldError("currentPassword", "This field cannot be blank")
+	}
+
+	if !validator.IsNotBlank(form.NewPassword) {
+		form.AddFieldError("newPassword", "This field cannot be blank")
+	}
+
+	if !validator.IsStringNotLessThanLimit(form.NewPassword, 8) {
+		form.AddFieldError("newPassword", "This field must be at least 8 characters long")
+	}
+
+	if form.NewPassword == form.CurrentPassword {
+		form.AddFieldError("newPassword", "New password and current password cannot be the same")
+	}
+
+	if !validator.IsNotBlank(form.NewPasswordConfirmation) {
+		form.AddFieldError("newPasswordConfirmation", "This field cannot be blank")
+	}
+
+	if form.NewPassword != form.NewPasswordConfirmation {
+		form.AddFieldError("newPasswordConfirmation", "Password and confirmation password do not match")
+	}
+
+	if !form.IsNoErrors() {
+		data := app.newTemplateData(r)
+		data.Form = form
+
+		app.render(w, http.StatusUnprocessableEntity, "change-password.html", data)
+		return
+	}
+
+	userId := app.sessionManager.GetInt(r.Context(), "authenticatedUserID")
+
+	userPassword, err := app.GetPasswordByID(r.Context(), int32(userId))
+	if err != nil {
+		app.serverError(w, err)
+		return
+	}
+
+	err = bcrypt.CompareHashAndPassword([]byte(userPassword), []byte(form.CurrentPassword))
+	if err != nil {
+		if errors.Is(err, bcrypt.ErrMismatchedHashAndPassword) {
+			form.AddGenericError("Current password is incorrect")
+
+			data := app.newTemplateData(r)
+			data.Form = form
+			app.render(w, http.StatusUnprocessableEntity, "change-password.html", data)
+		} else {
+			app.serverError(w, err)
+		}
+
+		return
+	}
+
+	newUserPassword, err := bcrypt.GenerateFromPassword([]byte(form.NewPassword), 12)
+	if err != nil {
+		app.serverError(w, err)
+		return
+	}
+
+	err = app.UpdateUserPassword(r.Context(), sqlc.UpdateUserPasswordParams{
+		HashedPassword: string(newUserPassword),
+		ID:             int32(userId),
+	})
+	if err != nil {
+		app.serverError(w, err)
+		return
+	}
+
+	app.sessionManager.Put(r.Context(), "flash", "Your password has been updated successfully!")
+
+	http.Redirect(w, r, "/account/view", http.StatusSeeOther)
 }
