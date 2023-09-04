@@ -6,7 +6,7 @@ uses [Session-Cookie Authentication](https://blog.bytebytego.com/i/112781858/ses
 ## Prerequisites
 
 - Go >= 1.20
-- PostgresSQL 15
+- PostgreSQL 15
 
 ## Setups
 
