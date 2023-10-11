@@ -27,7 +27,7 @@ type application struct {
 	infoLog  *log.Logger
 	errorLog *log.Logger
 	db       *sql.DB // In case of executing a transaction.
-	*sqlc.Queries
+	sqlc.Querier
 	templateCache  map[string]*template.Template
 	formDecoder    *form.Decoder // A Decoder instance is used to map HTML field values into struct fields.
 	sessionManager *scs.SessionManager
@@ -40,7 +40,7 @@ func main() {
 	}
 	infoLog.Print("Connected to database")
 
-	q := sqlc.New(db)
+	q := sqlc.NewStore(db)
 
 	templateCache, err := initializeTemplateCache()
 	if err != nil {
@@ -59,7 +59,7 @@ func main() {
 		infoLog:        infoLog,
 		errorLog:       errorLog,
 		db:             db,
-		Queries:        q,
+		Querier:        q,
 		templateCache:  templateCache,
 		formDecoder:    formDecoder,
 		sessionManager: sessionManager,
